@@ -16,7 +16,8 @@ EPSILON_DECAY_STEPS = 70
 REPLAY_SIZE = 1000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
-UPDATE_FREQUENCY = 1  
+UPDATE_FREQUENCY = 10 
+N_CONTINUOUS_ACTIONS = 9
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
@@ -45,12 +46,21 @@ def init(env, env_name):
     might help in using the same code for discrete and (discretised) continuous
     action spaces
     """
-    global replay_buffer, epsilon
+    global replay_buffer, epsilon, iscontinuous, actions
     replay_buffer = []
     epsilon = INITIAL_EPSILON
 
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    if env.action_space:
+        actions = {};
+        iscontinuous = True;
+        step = (env.action_space.high[0] - env.action_space.low[0])/(N_CONTINUOUS_ACTIONS - 1);
+        for i in range(N_CONTINUOUS_ACTIONS):
+            actions[i] = [env.action_space.low[0] + i * step];
+        action_dim = N_CONTINUOUS_ACTIONS;
+    else:
+        iscontinuous = False;
+        action_dim = env.action_space.n
     return state_dim, action_dim
 
 def fully_connected(name, inputs, target_inputs, num_outputs):
@@ -143,6 +153,8 @@ def get_env_action(action):
     Modify for continous action spaces that you have discretised, see hints in
     `init()`
     """
+    if iscontinuous:
+        return actions[action];
     return action
 
 
@@ -308,7 +320,7 @@ def setup():
 
 def main():
     env, state_dim, action_dim, network_vars = setup()
-    qtrain(env, state_dim, action_dim, *network_vars, render=False)
+    qtrain(env, state_dim, action_dim, *network_vars, render=True)
 
 
 if __name__ == "__main__":
