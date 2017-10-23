@@ -9,21 +9,21 @@ from time import sleep;
 """
 Hyper Parameters
 """
-GAMMA = 0.9  # discount factor for target Q
+GAMMA = 0.95  # discount factor for target Q
 INITIAL_EPSILON = 0.6  # starting value of epsilon
 FINAL_EPSILON = 0.1  # final value of epsilon
 EPSILON_DECAY_STEPS = 70
-REPLAY_SIZE = 1000  # experience replay buffer size
+REPLAY_SIZE = 3000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
-UPDATE_FREQUENCY = 10 
+UPDATE_FREQUENCY = 5
 N_CONTINUOUS_ACTIONS = 9
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = [50, 200, 100, 50]
+HIDDEN_NODES = [20, 100, 200, 100]
 
 
 def init(env, env_name):
@@ -51,7 +51,7 @@ def init(env, env_name):
     epsilon = INITIAL_EPSILON
 
     state_dim = env.observation_space.shape[0]
-    if env.action_space:
+    if env.action_space.shape:
         actions = {};
         iscontinuous = True;
         step = (env.action_space.high[0] - env.action_space.low[0])/(N_CONTINUOUS_ACTIONS - 1);
@@ -66,7 +66,9 @@ def init(env, env_name):
 def fully_connected(name, inputs, target_inputs, num_outputs):
     global update;
     with tf.variable_scope("{0}_layer_val".format(name)):
-        weights = tf.get_variable("weights", [inputs.get_shape()[1], num_outputs], initializer=tf.contrib.layers.xavier_initializer());
+        weights = tf.get_variable("weights", [inputs.get_shape()[1], num_outputs],
+                initializer=tf.contrib.layers.xavier_initializer(),
+                regularizer=tf.contrib.layers.l2_regularizer(0.0005));
         bias = tf.get_variable("biases", [num_outputs], initializer=tf.zeros_initializer());
 
     with tf.variable_scope("{0}_layer_tar".format(name)):
@@ -234,7 +236,7 @@ def get_train_batch(q_values, state_in, replay_buffer):
             target_batch.append(reward_batch[i])
         else:
             # set the target_val to the correct Q value update
-            target_val = reward_batch[i] + GAMMA * Q_value_batch[i][np.argmax(Q_target_batch[i])];
+            target_val = reward_batch[i] + GAMMA * Q_target_batch[i][np.argmax(Q_value_batch[i])];
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
 
