@@ -9,19 +9,21 @@ from time import sleep;
 """
 Hyper Parameters
 """
-GAMMA = 0.9  # discount factor for target Q
+GAMMA = 0.95  # discount factor for target Q
 INITIAL_EPSILON = 0.6  # starting value of epsilon
 FINAL_EPSILON = 0.1  # final value of epsilon
-EPSILON_DECAY_STEPS = 100
-REPLAY_SIZE = 1000  # experience replay buffer size
+EPSILON_DECAY_STEPS = 70
+REPLAY_SIZE = 3000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
+UPDATE_FREQUENCY = 5
+N_CONTINUOUS_ACTIONS = 9
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = [10, 50, 100, 50, 10]
+HIDDEN_NODES = [20, 100, 200, 100]
 
 
 def init(env, env_name):
@@ -44,14 +46,42 @@ def init(env, env_name):
     might help in using the same code for discrete and (discretised) continuous
     action spaces
     """
-    global replay_buffer, epsilon
+    global replay_buffer, epsilon, iscontinuous, actions
     replay_buffer = []
     epsilon = INITIAL_EPSILON
 
     state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.n
+    if env.action_space.shape:
+        actions = {};
+        iscontinuous = True;
+        step = (env.action_space.high[0] - env.action_space.low[0])/(N_CONTINUOUS_ACTIONS - 1);
+        for i in range(N_CONTINUOUS_ACTIONS):
+            actions[i] = [env.action_space.low[0] + i * step];
+        action_dim = N_CONTINUOUS_ACTIONS;
+    else:
+        iscontinuous = False;
+        action_dim = env.action_space.n
     return state_dim, action_dim
 
+def fully_connected(name, inputs, target_inputs, num_outputs):
+    global update;
+    with tf.variable_scope("{0}_layer_val".format(name)):
+        weights = tf.get_variable("weights", [inputs.get_shape()[1], num_outputs],
+                initializer=tf.contrib.layers.xavier_initializer(),
+                regularizer=tf.contrib.layers.l2_regularizer(0.0005));
+        bias = tf.get_variable("biases", [num_outputs], initializer=tf.zeros_initializer());
+
+    with tf.variable_scope("{0}_layer_tar".format(name)):
+        target_weights = tf.get_variable("weights", [inputs.get_shape()[1], num_outputs]);
+        target_bias = tf.get_variable("biases", [num_outputs]);
+
+    update.append(target_weights.assign(weights));
+    update.append(target_bias.assign(bias));
+
+    return tf.matmul(target_inputs, target_weights) + target_bias, tf.matmul(inputs, weights) + bias;
+
+def update_target(sess):
+    sess.run(update);
 
 def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     """Define the neural network used to approximate the q-function
@@ -65,6 +95,9 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     2) You will set `target_in` in `get_train_batch` further down. Probably best
     to implement that before implementing the loss (there are further hints there)
     """
+    global q_target, update;
+    update = [];
+
     state_in = tf.placeholder("float", [None, state_dim])
     action_in = tf.placeholder("float", [None, action_dim])  # one hot
 
@@ -74,11 +107,14 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # Q network, whose input is state_in, and has action_dim outputs
     # which are the network's esitmation of the Q values for those actions and the
     # input state. The final layer should be assigned to the variable q_values
-    cur = state_in;
-    for size in hidden_nodes:
-        cur = tf.contrib.layers.fully_connected(cur, size);
+    curval = state_in;
+    curtar = state_in;
+    for count, size in enumerate(hidden_nodes):
+        curtar, curval = fully_connected(count, curval, curtar, size);
+        curtar = tf.nn.relu(curtar);
+        curval = tf.nn.relu(curval);
 
-    q_values = tf.contrib.layers.fully_connected(cur, action_dim, None);
+    q_target, q_values = fully_connected("output", curval, curtar, action_dim);
 
     q_selected_action = \
         tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
@@ -119,6 +155,8 @@ def get_env_action(action):
     Modify for continous action spaces that you have discretised, see hints in
     `init()`
     """
+    if iscontinuous:
+        return actions[action];
     return action
 
 
@@ -188,13 +226,17 @@ def get_train_batch(q_values, state_in, replay_buffer):
     Q_value_batch = q_values.eval(feed_dict={
         state_in: next_state_batch
     })
+    Q_target_batch = q_target.eval(feed_dict={
+        state_in: next_state_batch
+    })
+    
     for i in range(0, BATCH_SIZE):
         sample_is_done = minibatch[i][4]
         if sample_is_done:
             target_batch.append(reward_batch[i])
         else:
             # set the target_val to the correct Q value update
-            target_val = reward_batch[i] + GAMMA * max(Q_value_batch[i]);
+            target_val = reward_batch[i] + GAMMA * Q_target_batch[i][np.argmax(Q_value_batch[i])];
             target_batch.append(target_val)
     return target_batch, state_batch, action_batch
 
@@ -223,6 +265,8 @@ def qtrain(env, state_dim, action_dim,
                     ((episode % test_frequency) < num_test_eps and
                         episode > num_test_eps
                     )
+        if episode % UPDATE_FREQUENCY == 0: update_target(session);
+
         if render and test_mode: env.render()
         if test_mode: print("Test mode (epsilon set to 0.0)")
 
@@ -278,7 +322,7 @@ def setup():
 
 def main():
     env, state_dim, action_dim, network_vars = setup()
-    qtrain(env, state_dim, action_dim, *network_vars, render=False)
+    qtrain(env, state_dim, action_dim, *network_vars, render=True)
 
 
 if __name__ == "__main__":
