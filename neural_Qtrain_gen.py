@@ -23,7 +23,7 @@ NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = [20, 100, 200, 100]
+HIDDEN_NODES = [64, 64]
 
 
 def init(env, env_name):
@@ -67,8 +67,8 @@ def fully_connected(name, inputs, target_inputs, num_outputs):
     global update;
     with tf.variable_scope("{0}_layer_val".format(name)):
         weights = tf.get_variable("weights", [inputs.get_shape()[1], num_outputs],
-                initializer=tf.contrib.layers.xavier_initializer(),
-                regularizer=tf.contrib.layers.l2_regularizer(0.0005));
+                initializer=tf.contrib.layers.xavier_initializer())#,
+                #regularizer=tf.contrib.layers.l2_regularizer(0.0005));
         bias = tf.get_variable("biases", [num_outputs], initializer=tf.zeros_initializer());
 
     with tf.variable_scope("{0}_layer_tar".format(name)):
@@ -111,8 +111,8 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     curtar = state_in;
     for count, size in enumerate(hidden_nodes):
         curtar, curval = fully_connected(count, curval, curtar, size);
-        curtar = tf.nn.relu(curtar);
-        curval = tf.nn.relu(curval);
+        curtar = tf.nn.tanh(curtar);
+        curval = tf.nn.tanh(curval);
 
     q_target, q_values = fully_connected("output", curval, curtar, action_dim);
 
@@ -322,7 +322,7 @@ def setup():
 
 def main():
     env, state_dim, action_dim, network_vars = setup()
-    qtrain(env, state_dim, action_dim, *network_vars, render=True)
+    qtrain(env, state_dim, action_dim, *network_vars, render=False)
 
 
 if __name__ == "__main__":

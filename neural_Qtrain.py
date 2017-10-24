@@ -21,7 +21,7 @@ NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = [128, 128]
+HIDDEN_NODES = [64, 64]
 
 
 def init(env, env_name):
@@ -76,7 +76,7 @@ def get_network(state_dim, action_dim, hidden_nodes=HIDDEN_NODES):
     # input state. The final layer should be assigned to the variable q_values
     cur = state_in;
     for size in hidden_nodes:
-        cur = tf.contrib.layers.fully_connected(cur, size);
+        cur = tf.contrib.layers.fully_connected(cur, size, tf.nn.tanh);
 
     q_values = tf.contrib.layers.fully_connected(cur, action_dim, None);
 
