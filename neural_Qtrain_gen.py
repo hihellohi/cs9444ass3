@@ -9,7 +9,7 @@ from time import sleep;
 """
 Hyper Parameters
 """
-GAMMA = 0.95  # discount factor for target Q
+GAMMA = 0.99  # discount factor for target Q
 INITIAL_EPSILON = 0.6  # starting value of epsilon
 FINAL_EPSILON = 0.1  # final value of epsilon
 EPSILON_DECAY_STEPS = 70
@@ -17,13 +17,13 @@ REPLAY_SIZE = 3000  # experience replay buffer size
 BATCH_SIZE = 128  # size of minibatch
 TEST_FREQUENCY = 10  # How many episodes to run before visualizing test accuracy
 UPDATE_FREQUENCY = 5
-N_CONTINUOUS_ACTIONS = 9
+N_CONTINUOUS_ACTIONS = 7
 SAVE_FREQUENCY = 1000  # How many episodes to run before saving model (unused)
 NUM_EPISODES = 1000  # Episode limitation
 EP_MAX_STEPS = 500  # Step limitation in an episode
 # The number of test iters (with epsilon set to 0) to run every TEST_FREQUENCY episodes
 NUM_TEST_EPS = 4
-HIDDEN_NODES = [64, 64]
+HIDDEN_NODES = [128, 128]
 
 
 def init(env, env_name):
@@ -322,7 +322,7 @@ def setup():
 
 def main():
     env, state_dim, action_dim, network_vars = setup()
-    qtrain(env, state_dim, action_dim, *network_vars, render=False)
+    qtrain(env, state_dim, action_dim, *network_vars, render=True)
 
 
 if __name__ == "__main__":
